@@ -15,10 +15,21 @@ Globals:
     Timeout: 30
 
 Resources:
+  HelpersLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: helpers
+      Description: Shared Python helpers
+      ContentUri: layers/helpers
+      CompatibleRuntimes:
+        - python3.12
+
   SensorsIngressFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: sensors-ingress
+      Layers:
+        - !Ref HelpersLayer
       PackageType: Image
       Architectures:
         - x86_64

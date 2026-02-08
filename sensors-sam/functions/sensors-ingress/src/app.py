@@ -1,8 +1,10 @@
 import json
+from helpers.logs import get_logger
 
+logger = get_logger(__name__)
 
 def lambda_handler(event, context):
-    print("EVENT: ", event)
+    logger.debug("EVENT: %s", event)
     return {
         "statusCode": 200,
         "body": json.dumps(
