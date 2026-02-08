@@ -1,5 +1,28 @@
 import boto3
-import cfnresponse
+import json
+import urllib.request
+
+SUCCESS = "SUCCESS"
+FAILED = "FAILED"
+
+def send_response(event, context, status, data=None):
+    response_body = {
+        "Status": status,
+        "Reason": f"See logs: {context.log_stream_name}",
+        "PhysicalResourceId": context.log_stream_name,
+        "StackId": event["StackId"],
+        "RequestId": event["RequestId"],
+        "LogicalResourceId": event["LogicalResourceId"],
+        "Data": data or {},
+    }
+
+    req = urllib.request.Request(
+        event["ResponseURL"],
+        data=json.dumps(response_body).encode("utf-8"),
+        headers={"Content-Type": ""},
+        method="PUT",
+    )
+    urllib.request.urlopen(req)
 
 class ELBv2Client:
     def __init__(self):
@@ -33,7 +56,7 @@ def lambda_handler(event, context):
             elb_client.register_target(TargetGroupArn=tg_arn, target_id=target_id)
         elif event["RequestType"] == "Delete":
             elb_client.deregister_target(TargetGroupArn=tg_arn, target_id=target_id)
-        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+        send_response(event, context, SUCCESS, {})
     except Exception as e:
         print("ERROR: ", e)
-        cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+        send_response(event, context, FAILED, {"Error": str(e)})
