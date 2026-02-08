@@ -8,13 +8,14 @@ logger = get_logger(__name__)
 
 _sns_client = None
 
-def get_sns_client(region: str = get_region()):
+def get_sns_client(region: str | None = None):
+    region = region or get_region()
     global _sns_client
     if _sns_client is None:
         _sns_client = boto3.client("sns", region_name=region)
     return _sns_client
 
-def publish_message(topic_arn, message, region: str = get_region()):
+def publish_message(topic_arn, message, region: str | None = None):
     try:
         client = get_sns_client(region)
         response = client.publish(TopicArn=topic_arn, Message=message)

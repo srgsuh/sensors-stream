@@ -45,7 +45,7 @@ Resources:
       Runtime: python3.12
       PackageType: Zip
       FunctionName: sensors-ingress
-      Handler: app.lambda_handler
+      Handler: sensors_ingress.lambda_handler
       CodeUri: functions/sensors-ingress/src
       Environment:
         Variables:
