@@ -2,19 +2,35 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
   Sensors Stream SAM Application.
-  Defines image-based Lambda functions for ALB integration.
+  Defines zip-based Lambda functions for ALB integration.
 
 Parameters:
   ALBStackName:
     Type: String
     Description: Name of the CloudFormation stack that exports the Lambda target group ARN
     Default: alb-lambda
+  CognitoUserPoolId:
+    Type: String
+    Description: ID of the Cognito user pool
+    Default: il-central-1_0zf0LNlSD
+  CognitoUserPoolClientId:
+    Type: String
+    Description: ID of the Cognito user pool client
+    Default: 2chpfairj5rakt9lffar3gnv3h
 
 Globals:
   Function:
     Timeout: 30
+    Runtime: python3.12
+    Architectures:
+      - x86_64
 
 Resources:
+  SensorsIngressTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: sensors-ingress-topic
+
   HelpersLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -28,16 +44,21 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: sensors-ingress
+      Handler: src.app.lambda_handler
+      CodeUri: functions/sensors-ingress
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref SensorsIngressTopic # pass topic ARN
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClientId
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: sns:Publish
+              Resource: !Ref SensorsIngressTopic
       Layers:
         - !Ref HelpersLayer
-      PackageType: Image
-      Architectures:
-        - x86_64
       ReservedConcurrentExecutions: 10
-    Metadata:
-      Dockerfile: Dockerfile
-      DockerContext: ./functions/sensors-ingress
-      DockerTag: python3.12-v1
 
   # Permission for ALB to invoke the Lambda function
   SensorsIngressInvokePermission:
@@ -54,9 +75,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "${AWS::StackName}-register-target"
-      PackageType: Image
-      Architectures:
-        - x86_64
+      Handler: src.app.lambda_handler
+      CodeUri: functions/sensors-tg-register
       Policies:
         - Statement:
             - Effect: Allow
@@ -64,10 +84,6 @@ Resources:
                 - elasticloadbalancing:RegisterTargets
                 - elasticloadbalancing:DeregisterTargets
               Resource: "*"
-    Metadata:
-      Dockerfile: Dockerfile
-      DockerContext: ./functions/sensors-tg-register
-      DockerTag: python3.12-v1
 
   SensorsIngressTargetGroupAttachment:
     Type: Custom::TargetGroupAttachment
