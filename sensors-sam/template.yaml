@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Sensors Stream SAM Application.
+  Defines image-based Lambda functions for ALB integration.
+
+Parameters:
+  ALBStackName:
+    Type: String
+    Description: Name of the CloudFormation stack that exports the Lambda target group ARN
+    Default: alb-lambda
+
+Globals:
+  Function:
+    Timeout: 30
+
+Resources:
+  SensorsIngressFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sensors-ingress
+      PackageType: Image
+      Architectures:
+        - x86_64
+      ReservedConcurrentExecutions: 10
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./functions/sensors-ingress
+      DockerTag: python3.12-v1
+
+  # Permission for ALB to invoke the Lambda function
+  SensorsIngressInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SensorsIngressFunction
+      Action: lambda:InvokeFunction
+      Principal: elasticloadbalancing.amazonaws.com
+      SourceArn:
+        Fn::ImportValue: !Sub "${ALBStackName}-LambdaTargetGroupArn"
+
+  SensorsIngressTargetGroupAttachment:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    DependsOn:
+      - SensorsIngressInvokePermission
+    Properties:
+      TargetGroupArn:
+        Fn::ImportValue: !Sub "${ALBStackName}-LambdaTargetGroupArn"
+      TargetId: !GetAtt SensorsIngressFunction.Arn
+
+Outputs:
+  SensorsIngressFunctionArn:
+    Description: ARN of the sensors-ingress Lambda function
+    Value: !GetAtt SensorsIngressFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorsIngressFunctionArn"
+
+  SensorsIngressFunctionName:
+    Description: Name of the sensors-ingress Lambda function
+    Value: !Ref SensorsIngressFunction

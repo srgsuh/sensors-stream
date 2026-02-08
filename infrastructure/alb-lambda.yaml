@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ALB + Lambda Target Group stack.
+  Creates an internet-facing Application Load Balancer with an HTTP listener
+  forwarding traffic to a Lambda target group (no targets registered).
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC ID where the ALB and its security group will be created.
+    Default: vpc-01eb545134560739e
+
+  ALBSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: >
+      A list of subnet IDs for the ALB. You must specify subnets from at
+      least two different availability zones.
+
+  ALBName:
+    Type: String
+    Description: The name of the Application Load Balancer.
+    Default: sensors-alb
+
+Resources:
+  # ---- Security Group ----
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for the sensors ALB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: Allow inbound HTTP from anywhere
+      Tags:
+        - Key: Name
+          Value: !Sub "sgr-${ALBName}"
+
+  # ---- Lambda Target Group ----
+  LambdaTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "tg-lambda-${ALBName}"
+      TargetType: lambda
+      # No Targets registered — Lambda functions will be added separately.
+
+  # ---- Application Load Balancer ----
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Ref ALBName
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets: !Ref ALBSubnets
+      Tags:
+        - Key: Name
+          Value: !Ref ALBName
+
+  # ---- HTTP Listener (port 80) ----
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref LambdaTargetGroup
+
+Outputs:
+  LambdaTargetGroupArn:
+    Description: ARN of the Lambda target group
+    Value: !GetAtt LambdaTargetGroup.TargetGroupArn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaTargetGroupArn"
+
+  ApplicationLoadBalancerArn:
+    Description: ARN of the Application Load Balancer
+    Value: !Ref ApplicationLoadBalancer
+    Export:
+      Name: !Sub "${AWS::StackName}-ApplicationLoadBalancerArn"
+
+  ApplicationLoadBalancerDNSName:
+    Description: DNS name of the ALB
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
