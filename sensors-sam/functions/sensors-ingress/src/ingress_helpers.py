@@ -1,6 +1,6 @@
 import json
 from helpers.logs import get_logger
-from helpers.sns_common import publish_message
+from helpers.sns_common import sns_client
 from helpers.config import InternalServerError, get_env_var
 
 class UnsupportedEndpointError(Exception):
@@ -40,7 +40,7 @@ def publish_sns_message(message: dict) -> None:
     try:
         topic_arn = get_env_var("SNS_TOPIC_ARN")
         logger.debug("TOPIC ARN: %s", topic_arn)
-        topic_response = publish_message(topic_arn, json.dumps(message))
+        topic_response = sns_client.publish_message(topic_arn, json.dumps(message))
         logger.debug("TOPIC RESPONSE: %s", topic_response)
         return topic_response
     except Exception as e:

@@ -1,32 +1,38 @@
 import boto3
 import cfnresponse
 
+class ELBv2Client:
+    def __init__(self):
+        self.client = None
+    
+    def get_client(self):
+        if self.client is None:
+            self.client = boto3.client("elbv2")
+        return self.client
 
-elbv2_client = None
-def get_client():
-    global elbv2_client
-    if elbv2_client is None:
-        elbv2_client = boto3.client("elbv2")
-    return elbv2_client
+    def register_target(self, TargetGroupArn: str, target_id: str) -> None:
+        self.get_client().register_targets(
+            TargetGroupArn=TargetGroupArn,
+            Targets=[{"Id": target_id}],
+        )
+    def deregister_target(self, TargetGroupArn: str, target_id: str) -> None:
+        self.get_client().deregister_targets(
+            TargetGroupArn=TargetGroupArn,
+            Targets=[{"Id": target_id}],
+        )
+
+elb_client = ELBv2Client()
 
 def lambda_handler(event, context):
     print("EVENT: ", event)
     try:
-        client = get_client()
         tg_arn = event["ResourceProperties"]["TargetGroupArn"]
         target_id = event["ResourceProperties"]["TargetId"]
 
         if event["RequestType"] in ("Create", "Update"):
-            client.register_targets(
-                TargetGroupArn=tg_arn,
-                Targets=[{"Id": target_id}],
-            )
+            elb_client.register_target(TargetGroupArn=tg_arn, target_id=target_id)
         elif event["RequestType"] == "Delete":
-            client.deregister_targets(
-                TargetGroupArn=tg_arn,
-                Targets=[{"Id": target_id}],
-            )
-        print("SUCCESS")
+            elb_client.deregister_target(TargetGroupArn=tg_arn, target_id=target_id)
         cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
     except Exception as e:
         print("ERROR: ", e)
