@@ -4,6 +4,7 @@ version = 0.1
 
 [default.global.parameters]
 stack_name = "sensors-sam"
+region = "il-central-1"
 
 [default.build.parameters]
 parallel = true
@@ -16,6 +17,8 @@ capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
 resolve_image_repos = true
+s3_prefix = "sensors-sam"
+parameter_overrides = "ALBStackName=\"alb-lambda\""
 
 [default.package.parameters]
 resolve_s3 = true

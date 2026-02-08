@@ -38,11 +38,32 @@ Resources:
       SourceArn:
         Fn::ImportValue: !Sub "${ALBStackName}-LambdaTargetGroupArn"
 
+  # Lambda-backed custom resource to register/deregister Lambda target with ALB target group
+  RegisterTargetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-register-target"
+      PackageType: Image
+      Architectures:
+        - x86_64
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - elasticloadbalancing:RegisterTargets
+                - elasticloadbalancing:DeregisterTargets
+              Resource: "*"
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./functions/sensors-tg-register
+      DockerTag: python3.12-v1
+
   SensorsIngressTargetGroupAttachment:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Type: Custom::TargetGroupAttachment
     DependsOn:
       - SensorsIngressInvokePermission
     Properties:
+      ServiceToken: !GetAtt RegisterTargetFunction.Arn
       TargetGroupArn:
         Fn::ImportValue: !Sub "${ALBStackName}-LambdaTargetGroupArn"
       TargetId: !GetAtt SensorsIngressFunction.Arn
