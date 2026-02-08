@@ -44,8 +44,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: sensors-ingress
-      Handler: src.app.lambda_handler
-      CodeUri: functions/sensors-ingress
+      Handler: app.lambda_handler
+      CodeUri: functions/sensors-ingress/src
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref SensorsIngressTopic # pass topic ARN
@@ -75,8 +75,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "${AWS::StackName}-register-target"
-      Handler: src.app.lambda_handler
-      CodeUri: functions/sensors-tg-register
+      Handler: app.lambda_handler
+      CodeUri: functions/sensors-tg-register/src
       Policies:
         - Statement:
             - Effect: Allow
@@ -102,6 +102,6 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-SensorsIngressFunctionArn"
 
-  SensorsIngressFunctionName:
-    Description: Name of the sensors-ingress Lambda function
-    Value: !Ref SensorsIngressFunction
+  SensorsIngressFunctionConsoleUrl:
+    Description: URL to open the sensors-ingress Lambda in AWS Console
+    Value: !Sub "https://console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions/${SensorsIngressFunction}"
