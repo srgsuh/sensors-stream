@@ -51,6 +51,7 @@ Resources:
           SNS_TOPIC_ARN: !Ref SensorsIngressTopic # pass topic ARN
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
           COGNITO_USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClientId
+          DEBUG_LEVEL: DEBUG
       Policies:
         - Statement:
             - Effect: Allow
