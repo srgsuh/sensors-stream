@@ -1,7 +1,7 @@
 from helpers.logs import get_logger
 from helpers.config import  ConfigurationError, InternalServerError
-from .cognito_auth import AuthError, authenticate_user
-from .ingress_helpers import (
+from cognito_auth import AuthError, authenticate_user
+from ingress_helpers import (
     InvalidRequestError, UnsupportedEndpointError,
     build_response, publish_sns_message, validate_path_and_method, get_request_body
 )

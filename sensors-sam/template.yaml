@@ -41,12 +41,13 @@ Resources:
 
   SensorsIngressFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      DockerContext: .
+      Dockerfile: functions/sensors-ingress/Dockerfile
+      DockerTag: python3.12
     Properties:
-      Runtime: python3.12
-      PackageType: Zip
+      PackageType: Image
       FunctionName: sensors-ingress
-      Handler: sensors_ingress.lambda_handler
-      CodeUri: functions/sensors-ingress/src
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref SensorsIngressTopic # pass topic ARN
@@ -58,8 +59,6 @@ Resources:
             - Effect: Allow
               Action: sns:Publish
               Resource: !Ref SensorsIngressTopic
-      Layers:
-        - !Ref HelpersLayer
       ReservedConcurrentExecutions: 10
 
   # Permission for ALB to invoke the Lambda function
