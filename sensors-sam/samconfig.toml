@@ -14,9 +14,11 @@ lint = true
 
 [default.deploy.parameters]
 capabilities = "CAPABILITY_IAM"
-confirm_changeset = true
+confirm_changeset = false
 resolve_s3 = true
-resolve_image_repos = true
+# Use an explicit ECR repo to avoid SAM "CompanionStack" repo-creation collisions.
+resolve_image_repos = false
+image_repository = "773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/registertargetfunction3a39ad99repo"
 s3_prefix = "sensors-sam"
 parameter_overrides = "ALBStackName=\"alb-lambda\" CognitoUserPoolId=\"il-central-1_0zf0LNlSD\" CognitoUserPoolClientId=\"2chpfairj5rakt9lffar3gnv3h\""
 

@@ -42,8 +42,9 @@ Resources:
   SensorsIngressFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: sensors-ingress
       Runtime: python3.12
+      PackageType: Zip
+      FunctionName: sensors-ingress
       Handler: app.lambda_handler
       CodeUri: functions/sensors-ingress/src
       Environment:

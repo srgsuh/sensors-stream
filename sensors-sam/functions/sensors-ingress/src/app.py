@@ -19,7 +19,7 @@ def build_response(status_code: int, message: str) -> dict:
         ),
     }
 
-ok_response = build_response(200, "Accepted")
+ok_response: dict = build_response(200, "Accepted")
 
 def get_request_body(event: dict) -> dict:
     return json.loads(event["body"])
@@ -39,8 +39,8 @@ def lambda_handler(event, context):
             logger.debug("REQUEST BODY: %s", request_body)
             topic_arn = get_env_var("SNS_TOPIC_ARN")
             logger.debug("TOPIC ARN: %s", topic_arn)
-            response = publish_message(topic_arn, json.dumps(request_body))
-            logger.debug("TOPIC RESPONSE: %s", response)
+            topic_response = publish_message(topic_arn, json.dumps(request_body))
+            logger.debug("TOPIC RESPONSE: ", topic_response)
     except (ConfigurationError, InternalServerError) as e:
         logger.error("Internal Server Error: %s", e)
         response = build_response(500, "Internal Server Error")
@@ -48,5 +48,5 @@ def lambda_handler(event, context):
         logger.error("Error parsing request body: %s", e)
         response = build_response(400, "Bad Request")
 
-    logger.debug("RESPONSE CODE: %s", response["statusCode"])
+    logger.debug("RESPONSE: ", response)
     return response

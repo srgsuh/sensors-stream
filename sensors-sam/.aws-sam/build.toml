@@ -9,11 +9,11 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["SensorsIngressFunction"]
 
-[function_build_definitions.212a8f24-7ca5-4e7b-8088-2ed6ae9f2287]
+[function_build_definitions.8a4b321e-973c-47c8-b3a1-bc31114ff96c]
 packagetype = "Image"
 functions = ["RegisterTargetFunction"]
 
-[function_build_definitions.212a8f24-7ca5-4e7b-8088-2ed6ae9f2287.metadata]
+[function_build_definitions.8a4b321e-973c-47c8-b3a1-bc31114ff96c.metadata]
 DockerContext = "C:\\Users\\ageres\\projects\\study\\sensors-stream\\sensors-sam\\functions\\sensors-tg-register"
 Dockerfile = "Dockerfile"
 DockerTag = "python3.12"
