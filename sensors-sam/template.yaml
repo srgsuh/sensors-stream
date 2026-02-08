@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
   Sensors Stream SAM Application.
-  Defines zip-based Lambda functions for ALB integration.
+  Defines Lambda functions (zip + container image) for ALB integration.
 
 Parameters:
   ALBStackName:
@@ -21,7 +21,6 @@ Parameters:
 Globals:
   Function:
     Timeout: 30
-    Runtime: python3.12
     Architectures:
       - x86_64
 
@@ -44,6 +43,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: sensors-ingress
+      Runtime: python3.12
       Handler: app.lambda_handler
       CodeUri: functions/sensors-ingress/src
       Environment:
@@ -73,10 +73,13 @@ Resources:
   # Lambda-backed custom resource to register/deregister Lambda target with ALB target group
   RegisterTargetFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      DockerContext: functions/sensors-tg-register
+      Dockerfile: Dockerfile
+      DockerTag: python3.12
     Properties:
       FunctionName: !Sub "${AWS::StackName}-register-target"
-      Handler: app.lambda_handler
-      CodeUri: functions/sensors-tg-register/src
+      PackageType: Image
       Policies:
         - Statement:
             - Effect: Allow

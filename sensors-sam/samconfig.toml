@@ -18,7 +18,7 @@ confirm_changeset = true
 resolve_s3 = true
 resolve_image_repos = true
 s3_prefix = "sensors-sam"
-parameter_overrides = "ALBStackName=\"alb-lambda\""
+parameter_overrides = "ALBStackName=\"alb-lambda\" CognitoUserPoolId=\"il-central-1_0zf0LNlSD\" CognitoUserPoolClientId=\"2chpfairj5rakt9lffar3gnv3h\""
 
 [default.package.parameters]
 resolve_s3 = true
