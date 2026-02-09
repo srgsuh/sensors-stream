@@ -171,7 +171,7 @@ Resources:
   RegisterTargetFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      DockerContext: functions/sensors-tg-register
+      DockerContext: stack_resources/sensors-tg-register
       Dockerfile: Dockerfile
       DockerTag: python3.12
     Properties:
