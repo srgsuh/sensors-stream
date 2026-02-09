@@ -69,14 +69,14 @@ class Sensor:
         }
 
 SENSORS: list[Sensor] = [
-    Sensor("001", 23),
-    Sensor("002", 47),
-    Sensor("003", 55),
-    Sensor("004", 70),
-    Sensor("005", 63),
-    Sensor("006", 54),
-    Sensor("007", 72),
-    Sensor("008", 82),
+    Sensor("101", 23),
+    Sensor("102", 47),
+    Sensor("103", 55),
+    Sensor("104", 70),
+    Sensor("105", 63),
+    Sensor("106", 54),
+    Sensor("107", 72),
+    Sensor("108", 82),
 ]
 
 def login(username: str, password: str) -> Optional[str]:
