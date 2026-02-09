@@ -17,6 +17,10 @@ Parameters:
     Type: String
     Description: ID of the Cognito user pool client
     Default: 2chpfairj5rakt9lffar3gnv3h
+  DynamoDBSensorParametersTableName:
+    Type: String
+    Description: Name of the DynamoDB table for sensor parameters
+    Default: sensor-parameters
 
 Globals:
   Function:
@@ -39,6 +43,18 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: sns-sensors-abnormal
+
+  SensorParametersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref DynamoDBSensorParametersTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sensor_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sensor_id
+          KeyType: HASH
 
   HelpersLayer:
     Type: AWS::Serverless::LayerVersion
@@ -94,12 +110,21 @@ Resources:
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref SensorsAverageTopic
+          SENSOR_PARAMETERS_TABLE_NAME: !Ref DynamoDBSensorParametersTableName
           DEBUG_LEVEL: DEBUG
       Policies:
         - Statement:
             - Effect: Allow
               Action: sns:Publish
               Resource: !Ref SensorsAverageTopic
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+                - dynamodb:Scan
+                - dynamodb:BatchGetItem
+              Resource: !GetAtt SensorParametersTable.Arn
       Events:
         SnsEvent:
           Type: SNS
@@ -120,12 +145,21 @@ Resources:
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref SensorsAbnormalTopic
+          SENSOR_PARAMETERS_TABLE_NAME: !Ref DynamoDBSensorParametersTableName
           DEBUG_LEVEL: DEBUG
       Policies:
         - Statement:
             - Effect: Allow
               Action: sns:Publish
               Resource: !Ref SensorsAbnormalTopic
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+                - dynamodb:Scan
+                - dynamodb:BatchGetItem
+              Resource: !GetAtt SensorParametersTable.Arn
       Events:
         SnsEvent:
           Type: SNS
@@ -160,6 +194,39 @@ Resources:
       TargetGroupArn:
         Fn::ImportValue: !Sub "${ALBStackName}-LambdaTargetGroupArn"
       TargetId: !GetAtt SensorsIngressFunction.Arn
+
+  # Lambda-backed custom resource to seed the DynamoDB sensor parameters table
+  SeedSensorParamsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerContext: stack_resources/seed-sensor-params
+      Dockerfile: Dockerfile
+      DockerTag: python3.12
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-seed-sensor-params"
+      PackageType: Image
+      Timeout: 60
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref DynamoDBSensorParametersTableName
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource: !GetAtt SensorParametersTable.Arn
+
+  SeedSensorParamsInvocation:
+    Type: Custom::SeedSensorParams
+    DependsOn:
+      - SensorParametersTable
+    Properties:
+      ServiceToken: !GetAtt SeedSensorParamsFunction.Arn
 
 Outputs:
   SensorsIngressFunctionArn:
@@ -201,3 +268,15 @@ Outputs:
     Value: !GetAtt SensorsAbnormalFunction.Arn
     Export:
       Name: !Sub "${AWS::StackName}-SensorsAbnormalFunctionArn"
+
+  SensorParametersTableArn:
+    Description: ARN of the DynamoDB sensor parameters table
+    Value: !GetAtt SensorParametersTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorParametersTableArn"
+
+  SensorParametersTableName:
+    Description: Name of the DynamoDB sensor parameters table
+    Value: !Ref SensorParametersTable
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorParametersTableName"
