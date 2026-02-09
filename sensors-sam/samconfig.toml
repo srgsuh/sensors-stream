@@ -1,35 +1,14 @@
-# More information about the configuration file can be found here:
-# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
 version = 0.1
 
-[default.global.parameters]
-stack_name = "sensors-sam"
-region = "il-central-1"
-
-[default.build.parameters]
-parallel = true
-
-[default.validate.parameters]
-lint = true
-
 [default.deploy.parameters]
-capabilities = "CAPABILITY_IAM"
-confirm_changeset = false
+stack_name = "sensors-sam"
 resolve_s3 = true
-# Use an explicit ECR repo to avoid SAM "CompanionStack" repo-creation collisions.
-resolve_image_repos = false
-image_repository = "773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/registertargetfunction3a39ad99repo"
 s3_prefix = "sensors-sam"
+region = "il-central-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
 parameter_overrides = "ALBStackName=\"alb-lambda\" CognitoUserPoolId=\"il-central-1_0zf0LNlSD\" CognitoUserPoolClientId=\"2chpfairj5rakt9lffar3gnv3h\""
+image_repositories = ["SensorsIngressFunction=773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/sensorsingressfunction41f42af6repo", "RegisterTargetFunction=773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/registertargetfunction3a39ad99repo"]
 
-[default.package.parameters]
-resolve_s3 = true
-
-[default.sync.parameters]
-watch = true
-
-[default.local_start_api.parameters]
-warm_containers = "EAGER"
-
-[default.local_start_lambda.parameters]
-warm_containers = "EAGER"
+[default.global.parameters]
+region = "il-central-1"
