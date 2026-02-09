@@ -8,9 +8,14 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
-LOG_LEVEL = logging.DEBUG
-logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
+DEBUG_LEVEL = logging.DEBUG
+
+logging.basicConfig(
+    format=LOG_FORMAT,
+    level=logging.WARNING,
+)
 logger = logging.getLogger("send_messages")
+logger.setLevel(DEBUG_LEVEL)
 
 API_BASE_URL = "sensors-alb-1575707353.il-central-1.elb.amazonaws.com"
 API_PATH = "/api/v1/sensors"
