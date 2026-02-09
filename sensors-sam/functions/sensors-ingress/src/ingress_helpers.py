@@ -21,10 +21,14 @@ def build_response(status_code: int, message: str) -> dict:
         ),
     }
 
-def validate_path_and_method(event: dict, app_path: str, methods: list[str] = ["POST"]) -> None:
-    path, method = event["path"], event["httpMethod"]
+def get_path_and_method(event: dict) -> tuple[str, str]:
+    path, method = event.get("path", ""), event.get("httpMethod", "")
     logger.debug("PATH: %s, METHOD: %s", path, method)
+    return path, method
+
+def validate_path_and_method(path: str, method: str, app_path: str, methods: list[str] = ["POST"]) -> None:
     if path != app_path or method not in methods:
+        logger.error("Invalid path or method: %s, %s", path, method)
         raise UnsupportedEndpointError("Invalid path or method")
 
 def get_request_body(event: dict) -> dict:
