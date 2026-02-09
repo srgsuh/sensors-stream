@@ -27,11 +27,6 @@ MAX_WORKERS = 8 # number of workers to use for sending requests
 N_REQUESTS = 64 # number of requests to send for each sensor
 DELAY_SECONDS = 2 # delay between requests in seconds
 
-NORMAL_PROBABILITY = 0.9 # probability of getting a normal value
-NORMAL_RANGE = 35 # range of normal values
-ABNORMAL_RANGE = 10 # range of abnormal values
-ABNORMAL_LOW_END_PROBABILITY = 0.5 # probability of getting abnormal value below normal range
-
 HEADERS: dict[str, str] = {
     "Content-Type": "application/json",
 }
@@ -42,41 +37,30 @@ def get_timestamp() -> str:
 def get_delay_seconds(base_delay_seconds: float = DELAY_SECONDS, max_deviation_seconds: float = 0.3) -> float:
     return base_delay_seconds + (random.random() - 1) * max_deviation_seconds
 
+
+BELOW_NORM_PROBABILITY = 0.05
+ABOVE_NORM_PROBABILITY = 0.05
+NORMAL_RANGE = 32
+
 class Sensor:
     def __init__(
             self,
             sensor_id: str,
             min_normal_value: int,
-            normal_range: int = NORMAL_RANGE,
-            abnormal_range: int = ABNORMAL_RANGE
+            value_range: int = NORMAL_RANGE
         ):
         self.sensor_id = sensor_id
         self.min_normal_value = min_normal_value
-        self.max_normal_value = min_normal_value + normal_range
-        self.min_lower_value = self.min_normal_value - 1 - abnormal_range
-        self.max_lower_value = self.min_normal_value - 1
-        self.min_upper_value = self.max_normal_value + 1 + abnormal_range
-        self.max_upper_value = self.max_normal_value + 1 + abnormal_range
+        self.value_range = value_range
     
-    def get_normal_value(self, random_generator: random.Random) -> int:
-        return random_generator.randint(self.min_normal_value, self.max_normal_value)
-    
-    def get_abnormal_value(self, random_generator: random.Random, abnormal_low_end_probability: float) -> int:
-        if random_generator.random() < abnormal_low_end_probability:
-            return random_generator.randint(self.min_lower_value, self.max_lower_value)
-        else:
-            return random_generator.randint(self.min_upper_value, self.max_upper_value)
-
-    def get_value(
-            self,
-            random_generator: random.Random,
-            normal_probability: float = NORMAL_PROBABILITY,
-            abnormal_low_end_probability: float = ABNORMAL_LOW_END_PROBABILITY
-        ) -> int:
-        if random_generator.random() < normal_probability:
-            return self.get_normal_value(random_generator)
-        else:
-            return self.get_abnormal_value(random_generator, abnormal_low_end_probability)
+    def get_value(self, random_generator: random.Random) -> int:
+        value = random_generator.randint(self.min_normal_value, self.min_normal_value + self.value_range - 1)
+        deviation_dice_roll = random_generator.random()
+        if deviation_dice_roll < BELOW_NORM_PROBABILITY:
+            value -= self.value_range
+        elif deviation_dice_roll > 1 - ABOVE_NORM_PROBABILITY:
+            value += self.value_range
+        return value
 
     def get_sensor_data(self, random_generator: random.Random) -> dict:
         return {
@@ -106,7 +90,7 @@ def login(username: str, password: str) -> Optional[str]:
         }
         login_response: Response = post(login_path, json=login_payload)
         return login_response.json()["AccessToken"]
-    except Exception as e:
+    except RequestException as e:
         logger.error("Error logging in: %s", e)
         return None
 
