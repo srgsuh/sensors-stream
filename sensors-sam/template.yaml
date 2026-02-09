@@ -39,10 +39,15 @@ Resources:
     Properties:
       TopicName: sns-sensors-average
 
-  SensorsAbnormalTopic:
+  SensorsAbnormalLowTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: sns-sensors-abnormal
+      TopicName: sns-sensors-abnormal-lo
+
+  SensorsAbnormalHighTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: sns-sensors-abnormal-hi
 
   SensorParametersTable:
     Type: AWS::DynamoDB::Table
@@ -144,14 +149,19 @@ Resources:
       FunctionName: sensors-abnormal-lambda
       Environment:
         Variables:
-          SNS_TOPIC_ARN: !Ref SensorsAbnormalTopic
+          SNS_ABNORMAL_LOW_TOPIC_ARN: !Ref SensorsAbnormalLowTopic
+          SNS_ABNORMAL_HIGH_TOPIC_ARN: !Ref SensorsAbnormalHighTopic
           SENSOR_PARAMETERS_TABLE_NAME: !Ref DynamoDBSensorParametersTableName
           DEBUG_LEVEL: DEBUG
       Policies:
         - Statement:
             - Effect: Allow
               Action: sns:Publish
-              Resource: !Ref SensorsAbnormalTopic
+              Resource: !Ref SensorsAbnormalLowTopic
+        - Statement:
+            - Effect: Allow
+              Action: sns:Publish
+              Resource: !Ref SensorsAbnormalHighTopic
         - Statement:
             - Effect: Allow
               Action:
@@ -252,10 +262,16 @@ Outputs:
       Name: !Sub "${AWS::StackName}-SensorsAverageTopicArn"
 
   SensorsAbnormalTopicArn:
-    Description: ARN of the sns-sensors-abnormal SNS topic
-    Value: !Ref SensorsAbnormalTopic
+    Description: ARN of the sns-sensors-abnormal-low SNS topic
+    Value: !Ref SensorsAbnormalLowTopic
     Export:
-      Name: !Sub "${AWS::StackName}-SensorsAbnormalTopicArn"
+      Name: !Sub "${AWS::StackName}-SensorsAbnormalLowTopicArn"
+
+  SensorsAbnormalHighTopicArn:
+    Description: ARN of the sns-sensors-abnormal-high SNS topic
+    Value: !Ref SensorsAbnormalHighTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorsAbnormalHighTopicArn"
 
   SensorsAvgFunctionArn:
     Description: ARN of the sensors-avg-lambda function

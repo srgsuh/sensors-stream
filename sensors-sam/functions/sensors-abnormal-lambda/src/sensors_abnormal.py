@@ -17,15 +17,13 @@ def get_sensor_limits(sensor_id: str) -> tuple[int, int]:
         _sensor_limits[sensor_id] = (params["min_value"], params["max_value"])
     return _sensor_limits[sensor_id]
 
-def publish_abnormal_data(sensor_data: dict, messageId: str, difference: int) -> None:
+def publish_abnormal_data(topic_arn: str, sensor_data: dict, messageId: str, difference: int) -> None:
     abnormal_data = {
         **sensor_data,
         "messageId": messageId,
         "difference": difference
     }
-    topic_arn = get_env_var("SNS_ABNORMAL_TOPIC_ARN")
-    if not topic_arn:
-        raise ValueError("SNS_ABNORMAL_TOPIC_ARN environment variable not set")
+    
     sns_client.publish_message(topic_arn, json.dumps(sensor_data))
 
 def lambda_handler(event, context) -> dict:
@@ -34,6 +32,8 @@ def lambda_handler(event, context) -> dict:
     Subscribes to sns-sensors-ingress and publishes to sns-sensors-abnormal.
     """
     error_message_ids: list[str] = []
+    low_topic_arn = get_env_var("SNS_ABNORMAL_LOW_TOPIC_ARN")
+    high_topic_arn = get_env_var("SNS_ABNORMAL_HIGH_TOPIC_ARN")
     try:
         # Process each SNS record
         for record in event.get('Records', []):
@@ -46,17 +46,19 @@ def lambda_handler(event, context) -> dict:
                     
                     sensor_data = json.loads(message) # Parse the message (assuming it's JSON)
                     sensor_id, sensor_value = sensor_data.get("sensor_id"), sensor_data.get("value")
-                    if not sensor_id or not sensor_value:
+                    if sensor_id is None or sensor_value is None:
                         raise ValueError(f"Incorrect sensor data in messageId: {messageId}")
                     
                     min_value, max_value = get_sensor_limits(sensor_id)
                     logger.debug("Sensor value: %s, min_value: %s, max_value: %s", sensor_value, min_value, max_value)
                     if sensor_value < min_value:
-                        publish_abnormal_data(sensor_data, messageId, min_value - sensor_value)
+                        publish_abnormal_data(low_topic_arn, sensor_data, messageId, min_value - sensor_value)
+                        logger.debug("Sensor value is below limit: %s", sensor_value)
                     elif sensor_value > max_value:
-                        publish_abnormal_data(sensor_data, messageId, max_value - sensor_value)
+                        publish_abnormal_data(high_topic_arn, sensor_data, messageId, max_value - sensor_value)
+                        logger.debug("Sensor value is above limit: %s", sensor_value)
                     else:
-                        logger.info("Sensor value is within limits: %s", sensor_value)
+                        logger.debug("Sensor value is within limits: %s", sensor_value)
                 except Exception as e:
                     if messageId:
                         error_message_ids.append(messageId)
