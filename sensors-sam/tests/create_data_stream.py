@@ -115,9 +115,9 @@ def task_worker(queue: queue.Queue, headers: dict, responses: Counter[int], work
 
 def produce_sensor_data(queue: queue.Queue, sensor: Sensor) -> None:
     random_generator = random.Random()
-    for task_id in range(N_REQUESTS):
+    for _ in range(N_REQUESTS):
         queue.put(sensor.get_sensor_data(random_generator))
-        time.sleep(DELAY_SECONDS + (random.random() - 1) * DELAY_MAX_DEVIATION)
+        time.sleep(DELAY_SECONDS + 2 * (random_generator.random() - 0.5) * DELAY_MAX_DEVIATION)
 
 def generate_stream() -> Counter[int] | None:
     logger.info("Starting test")

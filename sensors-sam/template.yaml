@@ -28,7 +28,17 @@ Resources:
   SensorsIngressTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: sensors-ingress-topic
+      TopicName: sns-sensors-ingress
+
+  SensorsAverageTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: sns-sensors-average
+
+  SensorsAbnormalTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: sns-sensors-abnormal
 
   HelpersLayer:
     Type: AWS::Serverless::LayerVersion
@@ -71,6 +81,58 @@ Resources:
       SourceArn:
         Fn::ImportValue: !Sub "${ALBStackName}-LambdaTargetGroupArn"
 
+  # Lambda function for calculating sensor averages
+  SensorsAvgFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerContext: .
+      Dockerfile: functions/sensors-avg-lambda/Dockerfile
+      DockerTag: python3.12
+    Properties:
+      PackageType: Image
+      FunctionName: sensors-avg-lambda
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref SensorsAverageTopic
+          DEBUG_LEVEL: DEBUG
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: sns:Publish
+              Resource: !Ref SensorsAverageTopic
+      Events:
+        SnsEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref SensorsIngressTopic
+      ReservedConcurrentExecutions: 10
+
+  # Lambda function for detecting abnormal sensor data
+  SensorsAbnormalFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerContext: .
+      Dockerfile: functions/sensors-abnormal-lambda/Dockerfile
+      DockerTag: python3.12
+    Properties:
+      PackageType: Image
+      FunctionName: sensors-abnormal-lambda
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref SensorsAbnormalTopic
+          DEBUG_LEVEL: DEBUG
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: sns:Publish
+              Resource: !Ref SensorsAbnormalTopic
+      Events:
+        SnsEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref SensorsIngressTopic
+      ReservedConcurrentExecutions: 10
+
   # Lambda-backed custom resource to register/deregister Lambda target with ALB target group
   RegisterTargetFunction:
     Type: AWS::Serverless::Function
@@ -109,3 +171,33 @@ Outputs:
   SensorsIngressFunctionConsoleUrl:
     Description: URL to open the sensors-ingress Lambda in AWS Console
     Value: !Sub "https://console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions/${SensorsIngressFunction}"
+
+  SensorsIngressTopicArn:
+    Description: ARN of the sns-sensors-ingress SNS topic
+    Value: !Ref SensorsIngressTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorsIngressTopicArn"
+
+  SensorsAverageTopicArn:
+    Description: ARN of the sns-sensors-average SNS topic
+    Value: !Ref SensorsAverageTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorsAverageTopicArn"
+
+  SensorsAbnormalTopicArn:
+    Description: ARN of the sns-sensors-abnormal SNS topic
+    Value: !Ref SensorsAbnormalTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorsAbnormalTopicArn"
+
+  SensorsAvgFunctionArn:
+    Description: ARN of the sensors-avg-lambda function
+    Value: !GetAtt SensorsAvgFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorsAvgFunctionArn"
+
+  SensorsAbnormalFunctionArn:
+    Description: ARN of the sensors-abnormal-lambda function
+    Value: !GetAtt SensorsAbnormalFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorsAbnormalFunctionArn"
