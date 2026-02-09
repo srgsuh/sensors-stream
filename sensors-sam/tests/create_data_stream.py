@@ -1,9 +1,11 @@
 from datetime import datetime
 import random
+import threading
 import time
 from typing import Optional
 from requests import post, get, Response, RequestException
-from queue import Queue, Empty
+import queue
+from collections import Counter
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -26,6 +28,7 @@ RESPONSE_STATISTICS: dict[int, int] = {}    # statistics of responses by status 
 MAX_WORKERS = 8 # number of workers to use for sending requests
 N_REQUESTS = 64 # number of requests to send for each sensor
 DELAY_SECONDS = 2 # delay between requests in seconds
+DELAY_MAX_DEVIATION = 0.3 # maximum deviation from the delay in seconds
 
 HEADERS: dict[str, str] = {
     "Content-Type": "application/json",
@@ -33,10 +36,6 @@ HEADERS: dict[str, str] = {
 
 def get_timestamp() -> str:
     return datetime.now().isoformat()
-
-def get_delay_seconds(base_delay_seconds: float = DELAY_SECONDS, max_deviation_seconds: float = 0.3) -> float:
-    return base_delay_seconds + (random.random() - 1) * max_deviation_seconds
-
 
 BELOW_NORM_PROBABILITY = 0.05
 ABOVE_NORM_PROBABILITY = 0.05
@@ -102,20 +101,32 @@ def send_sensor_data(sensor_data: dict, headers: dict) -> int:
         logger.error("Error sending sensor data: %s", e)
         return -1
 
-def task_executor(task: dict, headers: dict, delay_seconds: float = DELAY_SECONDS) -> int | None:
-    status_code = send_sensor_data(task, headers)
-    logger.debug("Completed task for sensor id=%s, value: %d, status code: %d", task["sensor_id"], task["value"], status_code)
-    time.sleep(delay_seconds)
-    return status_code
+def task_worker(queue: queue.Queue, headers: dict, responses: Counter[int], worker_id: int) -> None:
+    logger.info("==== Worker %d started ====", worker_id)
+    while True:
+        task = queue.get()
+        if task is None:
+            break
+        status_code = send_sensor_data(task, headers)
+        responses[status_code] += 1
+        logger.debug("Worker %d completed task: sensor_id=%s, value=%d, status=%d", worker_id, task["sensor_id"], task["value"], status_code)
+        queue.task_done()
+    logger.info("==== Worker %d completed all tasks ====", worker_id)
 
-def main() -> None:
+def produce_sensor_data(queue: queue.Queue, sensor: Sensor) -> None:
+    random_generator = random.Random()
+    for task_id in range(N_REQUESTS):
+        queue.put(sensor.get_sensor_data(random_generator))
+        time.sleep(DELAY_SECONDS + (random.random() - 1) * DELAY_MAX_DEVIATION)
+
+def generate_stream() -> Counter[int] | None:
     logger.info("Starting test")
     logger.info("Logging in...")
     access_token = login("user", "12345@Com")
     
     if not access_token:
         logger.error("Failed to login")
-        return
+        return None
     logger.info("Login successful")
 
     HEADERS = {
@@ -127,24 +138,41 @@ def main() -> None:
     health_response: Response = get(f"http://{API_BASE_URL}/health")
     if health_response.status_code != 200:
         logger.error("Failed to get health")
-        return
+        return None
     logger.info("Health check successful")
 
     logger.info("Sending requests...")
-    random_generator = random.Random(777)
-    futures = []
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        for _ in range(N_REQUESTS):
-            for sensor in SENSORS:
-                futures.append(executor.submit(task_executor, sensor.get_sensor_data(random_generator), HEADERS, get_delay_seconds()))
-
-    response_stat = {}    
-    for future in as_completed(futures):
-        status_code = future.result()
-        response_stat[status_code] = response_stat.get(status_code, 0) + 1
+    task_queue: queue.Queue[dict | None] = queue.Queue()
     
-    logger.info("Response statistics: %s", response_stat)
-    logger.info("Total requests: %d", sum(response_stat.values()))
+    workers: list[threading.Thread] = []
+    counters: list[Counter[int]] = []
+    for worker_id in range(MAX_WORKERS):
+        counters.append(Counter[int]())
+        worker = threading.Thread(target=task_worker, args=(task_queue, HEADERS.copy(), counters[worker_id], worker_id))
+        workers.append(worker)
+        worker.start()
+    
+    with ThreadPoolExecutor(max_workers=len(SENSORS)) as executor:
+        for sensor in SENSORS:
+            executor.submit(produce_sensor_data, task_queue, sensor)
+    
+    task_queue.join()
+    
+    for _ in range(MAX_WORKERS):
+        task_queue.put(None)
+    # wait for workers to complete
+    for worker in workers:
+        worker.join()
+    # aggregate response statistics
+    response_statistics: Counter[int] = Counter()
+    for counter in counters:
+        response_statistics.update(counter)
+
+    return response_statistics
 
 if __name__ == "__main__":
-    main()
+    response_statistics = generate_stream()
+    if response_statistics is not None:
+        logger.info("Response statistics: %s", response_statistics)
+        logger.info("Total requests: %d", sum(response_statistics.values()))
+        logger.info("Success rate: %f%%", response_statistics.get(200, 0) / sum(response_statistics.values()) * 100)
