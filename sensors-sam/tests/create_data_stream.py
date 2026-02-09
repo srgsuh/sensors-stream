@@ -3,7 +3,7 @@ import random
 import time
 from typing import Optional
 from requests import post, get, Response, RequestException
-import json
+from queue import Queue, Empty
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -19,7 +19,7 @@ API_URL = f"http://{API_BASE_URL}{API_PATH}"
 RESPONSE_STATISTICS: dict[int, int] = {}    # statistics of responses by status code
 
 MAX_WORKERS = 8 # number of workers to use for sending requests
-N_REQUESTS = 256 # number of requests to send for each sensor
+N_REQUESTS = 64 # number of requests to send for each sensor
 DELAY_SECONDS = 2 # delay between requests in seconds
 
 NORMAL_PROBABILITY = 0.9 # probability of getting a normal value
@@ -33,6 +33,9 @@ HEADERS: dict[str, str] = {
 
 def get_timestamp() -> str:
     return datetime.now().isoformat()
+
+def get_delay_seconds(base_delay_seconds: float = DELAY_SECONDS, max_deviation_seconds: float = 0.3) -> float:
+    return base_delay_seconds + (random.random() - 1) * max_deviation_seconds
 
 class Sensor:
     def __init__(
@@ -101,7 +104,8 @@ def login(username: str, password: str) -> Optional[str]:
     except Exception as e:
         logger.error("Error logging in: %s", e)
         return None
-def send_sensor_data(sensor_data: dict, headers: dict = HEADERS) -> int:
+
+def send_sensor_data(sensor_data: dict, headers: dict) -> int:
     try:
         response: Response = post(API_URL, headers=headers, json=sensor_data)
         return response.status_code
@@ -109,15 +113,11 @@ def send_sensor_data(sensor_data: dict, headers: dict = HEADERS) -> int:
         logger.error("Error sending sensor data: %s", e)
         return -1
 
-
-def generate_sensor_flow(sensor: Sensor, n_requests: int = N_REQUESTS) -> None:
-    random_generator = random.Random()
-    for _ in range(n_requests):
-        data = sensor.get_sensor_data(random_generator)
-        status_code = send_sensor_data(data, HEADERS)
-        RESPONSE_STATISTICS[status_code] = RESPONSE_STATISTICS.get(status_code, 0) + 1
-        logger.debug("Sent sensor %s data: %s, status code: %d", sensor.sensor_id, data, status_code)
-        time.sleep(DELAY_SECONDS + random_generator.randint(-4, 4)/10)
+def task_executor(task: dict, headers: dict, delay_seconds: float = DELAY_SECONDS) -> int | None:
+    status_code = send_sensor_data(task, headers)
+    logger.debug("Completed task for sensor id=%s, value: %d, status code: %d", task["sensor_id"], task["value"], status_code)
+    time.sleep(delay_seconds)
+    return status_code
 
 def main() -> None:
     logger.info("Starting test")
@@ -142,13 +142,20 @@ def main() -> None:
     logger.info("Health check successful")
 
     logger.info("Sending requests...")
+    random_generator = random.Random(777)
+    futures = []
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        for sensor in SENSORS:
-            executor.submit(generate_sensor_flow, sensor)
+        for _ in range(N_REQUESTS):
+            for sensor in SENSORS:
+                futures.append(executor.submit(task_executor, sensor.get_sensor_data(random_generator), HEADERS, get_delay_seconds()))
+
+    response_stat = {}    
+    for future in as_completed(futures):
+        status_code = future.result()
+        response_stat[status_code] = response_stat.get(status_code, 0) + 1
     
-    logger.info("Response statistics: %s", RESPONSE_STATISTICS)
-    logger.info("Total requests: %d", sum(RESPONSE_STATISTICS.values()))
-    
+    logger.info("Response statistics: %s", response_stat)
+    logger.info("Total requests: %d", sum(response_stat.values()))
 
 if __name__ == "__main__":
     main()
