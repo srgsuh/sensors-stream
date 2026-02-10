@@ -1,4 +1,3 @@
-from datetime import datetime
 import random
 import threading
 import time
@@ -34,8 +33,8 @@ HEADERS: dict[str, str] = {
     "Content-Type": "application/json",
 }
 
-def get_timestamp() -> str:
-    return datetime.now().isoformat()
+def get_timestamp() -> float:
+    return time.time()
 
 BELOW_NORM_PROBABILITY = 0.05
 ABOVE_NORM_PROBABILITY = 0.05
