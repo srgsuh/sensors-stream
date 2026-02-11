@@ -41,5 +41,5 @@ def lambda_handler(event, context):
         logger.error("Error parsing request body: %s", e)
         response = build_response(400, "Bad Request")
 
-    logger.debug("RESPONSE: ", response)
+    logger.debug("RESPONSE: %s", response)
     return response

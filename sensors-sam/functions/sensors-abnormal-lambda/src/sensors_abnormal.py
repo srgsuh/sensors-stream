@@ -1,14 +1,18 @@
-import os
 import json
 from helpers.logs import get_logger
 from helpers.config import get_env_var
 from helpers.sns_common import sns_client
 from helpers.dynamo_db import get_sensor_parameters
-from helpers.notifications import get_records, get_message_from_record, get_message_id_from_record
 
-logger = get_logger("an-lambda")
+logger = get_logger("sensors-abnormal")
 
 _sensor_limits: dict[str, tuple[int, int]] = {}
+
+def get_low_topic_arn() -> str:
+    return get_env_var("SNS_ABNORMAL_LOW_TOPIC_ARN")
+
+def get_high_topic_arn() -> str:
+    return get_env_var("SNS_ABNORMAL_HIGH_TOPIC_ARN")
 
 def get_sensor_limits(sensor_id: str) -> tuple[int, int]:
     if sensor_id not in _sensor_limits:
@@ -18,57 +22,55 @@ def get_sensor_limits(sensor_id: str) -> tuple[int, int]:
         _sensor_limits[sensor_id] = (params["min_value"], params["max_value"])
     return _sensor_limits[sensor_id]
 
-def publish_abnormal_data(topic_arn: str, sensor_data: dict, messageId: str, difference: int) -> None:
+def publish_abnormal_data(topic_arn: str, sensor_data: dict, difference: int) -> None:
     abnormal_data = {
         **sensor_data,
-        "messageId": messageId,
         "difference": difference
     }
+    sns_client.publish_message(topic_arn, json.dumps(abnormal_data))
+
+def process_record(record: dict) -> None:
+    message = record.get("body")
+    logger.debug("Processing message: %s", message)
     
-    sns_client.publish_message(topic_arn, json.dumps(sensor_data))
+    sensor_data = json.loads(message or "") # Parse the message (assuming it's JSON)
+    package_id = sensor_data.get("package_id")
+    logger.debug("Package ID: %s", package_id)
+    sensor_id, sensor_value = sensor_data.get("sensor_id"), sensor_data.get("value")
+    if sensor_id is None or sensor_value is None:
+        raise ValueError(f"Incorrect sensor data in package: {package_id}")
+    
+    min_value, max_value = get_sensor_limits(sensor_id)
+    logger.debug("Sensor value: %s, min_value: %s, max_value: %s", sensor_value, min_value, max_value)
+    if sensor_value < min_value:
+        publish_abnormal_data(get_low_topic_arn(), sensor_data, min_value - sensor_value)
+        logger.debug("Sensor value is below limit: %s", sensor_value)
+    elif sensor_value > max_value:
+        publish_abnormal_data(get_high_topic_arn(), sensor_data, max_value - sensor_value)
+        logger.debug("Sensor value is above limit: %s", sensor_value)
+    else:
+        logger.debug("Sensor value is within limits: %s", sensor_value)
 
 def lambda_handler(event, context) -> dict:
     """
     Lambda handler for detecting abnormal sensor data.
     Subscribes to sns-sensors-ingress and publishes to sns-sensors-abnormal.
     """
-    error_message_ids: list[str] = []
-    low_topic_arn = get_env_var("SNS_ABNORMAL_LOW_TOPIC_ARN")
-    high_topic_arn = get_env_var("SNS_ABNORMAL_HIGH_TOPIC_ARN")
     try:
-        # Process each SNS record
-        records = get_records(event)
-        logger.debug("%d records found", len(records))
+        logger.debug("EVENT: %s", event)
+        records = event.get("Records", [])
+        logger.debug("%d records received", len(records))
+        batch_item_failures = []
         for record in records:
-            messageId = None
+            messageId = record.get("messageId")
+            logger.debug("Message ID: %s", messageId)
             try:
-                messageId = get_message_id_from_record(record) or ""
-                message: str = get_message_from_record(record) or ""
-                logger.debug("MessageId: %s", messageId)
-                logger.debug("Processing message: %s", message)
-                
-                sensor_data = json.loads(message) # Parse the message (assuming it's JSON)
-                package_id = sensor_data.get("package_id")
-                logger.debug("Package ID: %s", package_id)
-                sensor_id, sensor_value = sensor_data.get("sensor_id"), sensor_data.get("value")
-                if sensor_id is None or sensor_value is None:
-                    raise ValueError(f"Incorrect sensor data in messageId: {messageId}")
-                
-                min_value, max_value = get_sensor_limits(sensor_id)
-                logger.debug("Sensor value: %s, min_value: %s, max_value: %s", sensor_value, min_value, max_value)
-                if sensor_value < min_value:
-                    publish_abnormal_data(low_topic_arn, sensor_data, package_id, min_value - sensor_value)
-                    logger.debug("Sensor value is below limit: %s", sensor_value)
-                elif sensor_value > max_value:
-                    publish_abnormal_data(high_topic_arn, sensor_data, package_id, max_value - sensor_value)
-                    logger.debug("Sensor value is above limit: %s", sensor_value)
-                else:
-                    logger.debug("Sensor value is within limits: %s", sensor_value)
+                process_record(record)
             except Exception as e:
-                if messageId:
-                    error_message_ids.append(messageId)
-                logger.error("Error processing sensor data: %s", e)
-        return {"status": "success", "error_message_ids": error_message_ids}
+                batch_item_failures.append({"itemIdentifier": messageId})
+                logger.error("Error processing message %s: %s", messageId, e)
+        logger.info("%d messages processed successfully, %d messages failed", len(records) - len(batch_item_failures), len(batch_item_failures))
+        return {"batchItemFailures": batch_item_failures}
     except Exception as e:
-        logger.error("Error processing sensor data: %s", e)
-        return {"status": "error", "error": str(e)}
+        logger.error("Error processing event: %s", e)
+        return {}
