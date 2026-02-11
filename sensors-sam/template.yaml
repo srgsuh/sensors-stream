@@ -21,10 +21,28 @@ Parameters:
     Type: String
     Description: Name of the DynamoDB table for sensor parameters
     Default: sensor-parameters
+  SqsLambdaBatchSize:
+    Type: Number
+    Description: Batch size for SQS-triggered Lambda event source mappings
+    Default: 10
+    MinValue: 1
+    MaxValue: 10
+  SqsLambdaBatchingWindowSeconds:
+    Type: Number
+    Description: Maximum batching window (seconds) for SQS-triggered Lambda event source mappings
+    Default: 5
+    MinValue: 0
+    MaxValue: 300
+  SqsVisibilityTimeoutSeconds:
+    Type: Number
+    Description: Visibility timeout (seconds) for SQS queues
+    Default: 60
+    MinValue: 0
+    MaxValue: 43200
 
 Globals:
   Function:
-    Timeout: 30
+    Timeout: 10
     Architectures:
       - x86_64
 
@@ -53,11 +71,13 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: sqs-sensors-avg
+      VisibilityTimeout: !Ref SqsVisibilityTimeoutSeconds
 
   SensorsAbnormalQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: sqs-sensors-abnormal
+      VisibilityTimeout: !Ref SqsVisibilityTimeoutSeconds
 
   SensorsIngressToAvgQueueSubscription:
     Type: AWS::SNS::Subscription
@@ -187,6 +207,13 @@ Resources:
         - Statement:
             - Effect: Allow
               Action:
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+                - sqs:ReceiveMessage
+              Resource: !GetAtt SensorsAvgQueue.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
                 - dynamodb:GetItem
                 - dynamodb:Query
                 - dynamodb:Scan
@@ -197,6 +224,8 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt SensorsAvgQueue.Arn
+            BatchSize: !Ref SqsLambdaBatchSize
+            MaximumBatchingWindowInSeconds: !Ref SqsLambdaBatchingWindowSeconds
       ReservedConcurrentExecutions: 10
 
   # Lambda function for detecting abnormal sensor data
@@ -229,6 +258,13 @@ Resources:
         - Statement:
             - Effect: Allow
               Action:
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+                - sqs:ReceiveMessage
+              Resource: !GetAtt SensorsAbnormalQueue.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
                 - dynamodb:GetItem
                 - dynamodb:Query
                 - dynamodb:Scan
@@ -239,6 +275,8 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt SensorsAbnormalQueue.Arn
+            BatchSize: !Ref SqsLambdaBatchSize
+            MaximumBatchingWindowInSeconds: !Ref SqsLambdaBatchingWindowSeconds
       ReservedConcurrentExecutions: 10
 
   # Lambda-backed custom resource to register/deregister Lambda target with ALB target group
