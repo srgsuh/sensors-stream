@@ -6,7 +6,8 @@ resolve_s3 = true
 s3_prefix = "sensors-sam"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "ALBStackName=\"alb-lambda\" CognitoUserPoolId=\"il-central-1_0zf0LNlSD\" CognitoUserPoolClientId=\"2chpfairj5rakt9lffar3gnv3h\" DynamoDBSensorParametersTableName=\"sensor-parameters\" SqsLambdaBatchSize=\"10\" SqsLambdaBatchingWindowSeconds=\"5\" SqsVisibilityTimeoutSeconds=\"60\""
+parameter_overrides = "ALBStackName=\"alb-lambda\" CognitoUserPoolId=\"il-central-1_0zf0LNlSD\" CognitoUserPoolClientId=\"2chpfairj5rakt9lffar3gnv3h\" DynamoDBSensorParametersTableName=\"sensor-parameters\" SqsLambdaBatchSize=\"10\" SqsLambdaBatchingWindowSeconds=\"5\" SqsVisibilityTimeoutSeconds=\"30\""
+image_repositories = []
 
 [default.global.parameters]
 region = "il-central-1"
