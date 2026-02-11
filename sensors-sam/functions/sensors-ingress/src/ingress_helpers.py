@@ -1,4 +1,5 @@
 import json
+import uuid
 from helpers.logs import get_logger
 from helpers.sns_common import sns_client
 from helpers.config import InternalServerError, get_env_var
@@ -31,14 +32,31 @@ def validate_path_and_method(path: str, method: str, app_path: str, methods: lis
         logger.error("Invalid path or method: %s, %s", path, method)
         raise UnsupportedEndpointError("Invalid path or method")
 
+def validate_request_body(body: dict) -> None:
+    if "sensor_id" not in body:
+        raise InvalidRequestError("Sensor ID is required")
+    if "value" not in body:
+        raise InvalidRequestError("Value is required")
+
 def get_request_body(event: dict) -> dict:
     try:
         body: dict = json.loads(event["body"])
         logger.debug("REQUEST BODY: %s", body)
+
+        validate_request_body(body)
+
         return body
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error parsing request body: {e}")
         raise InvalidRequestError(f"Error parsing request body: {e}")
+
+def build_sns_message(body: dict) -> dict:
+    package_id = str(uuid.uuid4())
+    logger.debug("PACKAGE ID: %s", package_id)
+    return {
+        "package_id": package_id,
+        **body,
+    }
 
 def publish_sns_message(message: dict) -> None:
     try:
