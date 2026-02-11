@@ -279,6 +279,44 @@ Resources:
             MaximumBatchingWindowInSeconds: !Ref SqsLambdaBatchingWindowSeconds
       ReservedConcurrentExecutions: 10
 
+  SensorsHighValuesFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerContext: .
+      Dockerfile: functions/sensors-high-values/Dockerfile
+      DockerTag: python3.12
+    Properties:
+      PackageType: Image
+      FunctionName: sensors-high-values
+      Environment:
+        Variables:
+          DEBUG_LEVEL: DEBUG
+      Events:
+        SnsEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref SensorsAbnormalHighTopic
+      ReservedConcurrentExecutions: 10
+
+  SensorsLowValuesFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerContext: .
+      Dockerfile: functions/sensors-low-values/Dockerfile
+      DockerTag: python3.12
+    Properties:
+      PackageType: Image
+      FunctionName: sensors-low-values
+      Environment:
+        Variables:
+          DEBUG_LEVEL: DEBUG
+      Events:
+        SnsEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref SensorsAbnormalLowTopic
+      ReservedConcurrentExecutions: 10
+
   # Lambda-backed custom resource to register/deregister Lambda target with ALB target group
   RegisterTargetFunction:
     Type: AWS::Serverless::Function
@@ -386,6 +424,18 @@ Outputs:
     Value: !GetAtt SensorsAbnormalFunction.Arn
     Export:
       Name: !Sub "${AWS::StackName}-SensorsAbnormalFunctionArn"
+
+  SensorsHighValuesFunctionArn:
+    Description: ARN of the sensors-high-values function
+    Value: !GetAtt SensorsHighValuesFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorsHighValuesFunctionArn"
+
+  SensorsLowValuesFunctionArn:
+    Description: ARN of the sensors-low-values function
+    Value: !GetAtt SensorsLowValuesFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SensorsLowValuesFunctionArn"
 
   SensorParametersTableArn:
     Description: ARN of the DynamoDB sensor parameters table
