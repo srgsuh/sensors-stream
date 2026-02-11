@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
   Sensors Stream SAM Application.
-  Defines Lambda functions (zip + container image) for ALB integration.
+  Defines Lambda functions (ZIP package type) for ALB integration.
 
 Parameters:
   ALBStackName:
@@ -36,12 +36,13 @@ Parameters:
   SqsVisibilityTimeoutSeconds:
     Type: Number
     Description: Visibility timeout (seconds) for SQS queues
-    Default: 60
+    Default: 30
     MinValue: 0
     MaxValue: 43200
 
 Globals:
   Function:
+    Runtime: python3.12
     Timeout: 10
     Architectures:
       - x86_64
@@ -150,15 +151,27 @@ Resources:
       CompatibleRuntimes:
         - python3.12
 
+  RequestAuthLayer:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.12
+    Properties:
+      LayerName: request-auth-layer
+      Description: Third-party dependencies used by sensors-ingress
+      ContentUri: layers/request-auth-layer
+      CompatibleRuntimes:
+        - python3.12
+
   SensorsIngressFunction:
     Type: AWS::Serverless::Function
-    Metadata:
-      DockerContext: .
-      Dockerfile: functions/sensors-ingress/Dockerfile
-      DockerTag: python3.12
     Properties:
-      PackageType: Image
+      PackageType: Zip
       FunctionName: sensors-ingress
+      CodeUri: functions/sensors-ingress/src
+      Handler: sensors_ingress.lambda_handler
+      Layers:
+        - !Ref HelpersLayer
+        - !Ref RequestAuthLayer
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref SensorsIngressTopic # pass topic ARN
@@ -185,13 +198,13 @@ Resources:
   # Lambda function for calculating sensor averages
   SensorsAvgFunction:
     Type: AWS::Serverless::Function
-    Metadata:
-      DockerContext: .
-      Dockerfile: functions/sensors-avg-lambda/Dockerfile
-      DockerTag: python3.12
     Properties:
-      PackageType: Image
+      PackageType: Zip
       FunctionName: sensors-avg-lambda
+      CodeUri: functions/sensors-avg-lambda/src
+      Handler: sensors_avg.lambda_handler
+      Layers:
+        - !Ref HelpersLayer
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref SensorsAverageTopic
@@ -226,18 +239,18 @@ Resources:
             Queue: !GetAtt SensorsAvgQueue.Arn
             BatchSize: !Ref SqsLambdaBatchSize
             MaximumBatchingWindowInSeconds: !Ref SqsLambdaBatchingWindowSeconds
-      ReservedConcurrentExecutions: 10
+      ReservedConcurrentExecutions: 5
 
   # Lambda function for detecting abnormal sensor data
   SensorsAbnormalFunction:
     Type: AWS::Serverless::Function
-    Metadata:
-      DockerContext: .
-      Dockerfile: functions/sensors-abnormal-lambda/Dockerfile
-      DockerTag: python3.12
     Properties:
-      PackageType: Image
+      PackageType: Zip
       FunctionName: sensors-abnormal-lambda
+      CodeUri: functions/sensors-abnormal-lambda/src
+      Handler: sensors_abnormal.lambda_handler
+      Layers:
+        - !Ref HelpersLayer
       Environment:
         Variables:
           SNS_ABNORMAL_LOW_TOPIC_ARN: !Ref SensorsAbnormalLowTopic
@@ -277,17 +290,17 @@ Resources:
             Queue: !GetAtt SensorsAbnormalQueue.Arn
             BatchSize: !Ref SqsLambdaBatchSize
             MaximumBatchingWindowInSeconds: !Ref SqsLambdaBatchingWindowSeconds
-      ReservedConcurrentExecutions: 10
+      ReservedConcurrentExecutions: 5
 
   SensorsHighValuesFunction:
     Type: AWS::Serverless::Function
-    Metadata:
-      DockerContext: .
-      Dockerfile: functions/sensors-high-values/Dockerfile
-      DockerTag: python3.12
     Properties:
-      PackageType: Image
+      PackageType: Zip
       FunctionName: sensors-high-values
+      CodeUri: functions/sensors-high-values/src
+      Handler: sensors_high_values.lambda_handler
+      Layers:
+        - !Ref HelpersLayer
       Environment:
         Variables:
           DEBUG_LEVEL: DEBUG
@@ -296,17 +309,17 @@ Resources:
           Type: SNS
           Properties:
             Topic: !Ref SensorsAbnormalHighTopic
-      ReservedConcurrentExecutions: 10
+      ReservedConcurrentExecutions: 5
 
   SensorsLowValuesFunction:
     Type: AWS::Serverless::Function
-    Metadata:
-      DockerContext: .
-      Dockerfile: functions/sensors-low-values/Dockerfile
-      DockerTag: python3.12
     Properties:
-      PackageType: Image
+      PackageType: Zip
       FunctionName: sensors-low-values
+      CodeUri: functions/sensors-low-values/src
+      Handler: sensors_low_values.lambda_handler
+      Layers:
+        - !Ref HelpersLayer
       Environment:
         Variables:
           DEBUG_LEVEL: DEBUG
@@ -315,18 +328,16 @@ Resources:
           Type: SNS
           Properties:
             Topic: !Ref SensorsAbnormalLowTopic
-      ReservedConcurrentExecutions: 10
+      ReservedConcurrentExecutions: 5
 
   # Lambda-backed custom resource to register/deregister Lambda target with ALB target group
   RegisterTargetFunction:
     Type: AWS::Serverless::Function
-    Metadata:
-      DockerContext: stack_resources/sensors-tg-register
-      Dockerfile: Dockerfile
-      DockerTag: python3.12
     Properties:
       FunctionName: !Sub "${AWS::StackName}-register-target"
-      PackageType: Image
+      PackageType: Zip
+      CodeUri: stack_resources/sensors-tg-register/src
+      Handler: app.lambda_handler
       Policies:
         - Statement:
             - Effect: Allow
@@ -348,13 +359,11 @@ Resources:
   # Lambda-backed custom resource to seed the DynamoDB sensor parameters table
   SeedSensorParamsFunction:
     Type: AWS::Serverless::Function
-    Metadata:
-      DockerContext: stack_resources/seed-sensor-params
-      Dockerfile: Dockerfile
-      DockerTag: python3.12
     Properties:
       FunctionName: !Sub "${AWS::StackName}-seed-sensor-params"
-      PackageType: Image
+      PackageType: Zip
+      CodeUri: stack_resources/seed-sensor-params/src
+      Handler: app.lambda_handler
       Timeout: 60
       Environment:
         Variables:
