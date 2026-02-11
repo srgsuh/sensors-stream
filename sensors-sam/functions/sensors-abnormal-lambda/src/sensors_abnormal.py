@@ -19,7 +19,9 @@ def get_sensor_limits(sensor_id: str) -> tuple[int, int]:
         params = get_sensor_parameters(sensor_id)
         if not params:
             raise ValueError(f"Sensor bounds not found for sensor_id: {sensor_id}")
-        _sensor_limits[sensor_id] = (params["min_value"], params["max_value"])
+        min_value = int(params["min_value"])
+        max_value = int(params["max_value"])
+        _sensor_limits[sensor_id] = (min_value, max_value)
     return _sensor_limits[sensor_id]
 
 def publish_abnormal_data(topic_arn: str, sensor_data: dict, deviation: int) -> None:
@@ -43,7 +45,7 @@ def process_record(record: dict) -> None:
     min_value, max_value = get_sensor_limits(sensor_id)
     logger.debug("Sensor value: %s, min_value: %s, max_value: %s", sensor_value, min_value, max_value)
     if sensor_value < min_value:
-        publish_abnormal_data(get_low_topic_arn(), sensor_data, sensor_value - min_value)
+        publish_abnormal_data(get_low_topic_arn(), sensor_data, min_value - sensor_value)
         logger.debug("Sensor %s value %s is below limit: %s", sensor_id, sensor_value, min_value)
     elif sensor_value > max_value:
         publish_abnormal_data(get_high_topic_arn(), sensor_data, sensor_value - max_value)
