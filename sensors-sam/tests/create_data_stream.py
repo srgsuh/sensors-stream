@@ -1,6 +1,7 @@
 import random
 import threading
 import time
+import argparse
 from typing import Optional
 from requests import post, get, Response, RequestException
 import queue
@@ -24,8 +25,8 @@ API_URL = f"http://{API_BASE_URL}{API_PATH}"
 
 RESPONSE_STATISTICS: dict[int, int] = {}    # statistics of responses by status code
 
-MAX_SENDER_WORKERS = 8 # number of workers to use for sending sensor data
-N_REQUESTS_PER_SENSOR = 64 # number of requests to send for each sensor
+MAX_SENDER_WORKERS = 4 # number of workers to use for sending sensor data
+N_REQUESTS_PER_SENSOR = 256 # number of requests to send for each sensor
 DELAY_SECONDS = 2 # delay between requests in seconds
 DELAY_MAX_DEVIATION = 0.3 # maximum deviation from the delay in seconds
 
@@ -171,8 +172,15 @@ def generate_stream(username: str, password: str) -> Counter[int] | None:
 
     return response_statistics
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate test sensor data stream")
+    parser.add_argument("username", help="Username used for login")
+    parser.add_argument("password", help="Password used for login")
+    return parser.parse_args()
+
 if __name__ == "__main__":
-    response_statistics = generate_stream("user", "12345@Com")
+    args = parse_args()
+    response_statistics = generate_stream(args.username, args.password)
     if response_statistics is not None:
         logger.info("Response statistics: %s", response_statistics)
         logger.info("Total requests: %d", sum(response_statistics.values()))
