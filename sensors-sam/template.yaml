@@ -49,6 +49,66 @@ Resources:
     Properties:
       TopicName: sns-sensors-abnormal-hi
 
+  SensorsAvgQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: sqs-sensors-avg
+
+  SensorsAbnormalQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: sqs-sensors-abnormal
+
+  SensorsIngressToAvgQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref SensorsIngressTopic
+      Endpoint: !GetAtt SensorsAvgQueue.Arn
+      RawMessageDelivery: true
+
+  SensorsIngressToAbnormalQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref SensorsIngressTopic
+      Endpoint: !GetAtt SensorsAbnormalQueue.Arn
+      RawMessageDelivery: true
+
+  SensorsAvgQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref SensorsAvgQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt SensorsAvgQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref SensorsIngressTopic
+
+  SensorsAbnormalQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref SensorsAbnormalQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt SensorsAbnormalQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref SensorsIngressTopic
+
   SensorParametersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -122,6 +182,8 @@ Resources:
             - Effect: Allow
               Action: sns:Publish
               Resource: !Ref SensorsAverageTopic
+        - SQSPollerPolicy:
+            QueueName: !GetAtt SensorsAvgQueue.QueueName
         - Statement:
             - Effect: Allow
               Action:
@@ -131,10 +193,10 @@ Resources:
                 - dynamodb:BatchGetItem
               Resource: !GetAtt SensorParametersTable.Arn
       Events:
-        SnsEvent:
-          Type: SNS
+        SqsEvent:
+          Type: SQS
           Properties:
-            Topic: !Ref SensorsIngressTopic
+            Queue: !GetAtt SensorsAvgQueue.Arn
       ReservedConcurrentExecutions: 10
 
   # Lambda function for detecting abnormal sensor data
@@ -162,6 +224,8 @@ Resources:
             - Effect: Allow
               Action: sns:Publish
               Resource: !Ref SensorsAbnormalHighTopic
+        - SQSPollerPolicy:
+            QueueName: !GetAtt SensorsAbnormalQueue.QueueName
         - Statement:
             - Effect: Allow
               Action:
@@ -171,10 +235,10 @@ Resources:
                 - dynamodb:BatchGetItem
               Resource: !GetAtt SensorParametersTable.Arn
       Events:
-        SnsEvent:
-          Type: SNS
+        SqsEvent:
+          Type: SQS
           Properties:
-            Topic: !Ref SensorsIngressTopic
+            Queue: !GetAtt SensorsAbnormalQueue.Arn
       ReservedConcurrentExecutions: 10
 
   # Lambda-backed custom resource to register/deregister Lambda target with ALB target group

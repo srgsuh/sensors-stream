@@ -4,11 +4,10 @@ version = 0.1
 stack_name = "sensors-sam"
 resolve_s3 = true
 s3_prefix = "sensors-sam"
-region = "il-central-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "ALBStackName=\"alb-lambda\" CognitoUserPoolId=\"il-central-1_0zf0LNlSD\" CognitoUserPoolClientId=\"2chpfairj5rakt9lffar3gnv3h\""
-image_repositories = ["SensorsIngressFunction=773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/sensorsingressfunction41f42af6repo", "RegisterTargetFunction=773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/registertargetfunction3a39ad99repo"]
+parameter_overrides = "ALBStackName=\"alb-lambda\" CognitoUserPoolId=\"il-central-1_0zf0LNlSD\" CognitoUserPoolClientId=\"2chpfairj5rakt9lffar3gnv3h\" DynamoDBSensorParametersTableName=\"sensor-parameters\""
+image_repositories = ["SensorsIngressFunction=773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/sensorsingressfunction41f42af6repo", "RegisterTargetFunction=773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/registertargetfunction3a39ad99repo", "SensorsAvgFunction=773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/sensorsavgfunctionc0d7a930repo", "SensorsAbnormalFunction=773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/sensorsabnormalfunction0ff239fcrepo", "SeedSensorParamsFunction=773769103104.dkr.ecr.il-central-1.amazonaws.com/sensorssamba015a1e/seedsensorparamsfunction53c3004drepo"]
 
 [default.global.parameters]
 region = "il-central-1"
