@@ -24,8 +24,8 @@ API_URL = f"http://{API_BASE_URL}{API_PATH}"
 
 RESPONSE_STATISTICS: dict[int, int] = {}    # statistics of responses by status code
 
-MAX_WORKERS = 8 # number of workers to use for sending requests
-N_REQUESTS = 64 # number of requests to send for each sensor
+MAX_SENDER_WORKERS = 8 # number of workers to use for sending sensor data
+N_REQUESTS_PER_SENSOR = 64 # number of requests to send for each sensor
 DELAY_SECONDS = 2 # delay between requests in seconds
 DELAY_MAX_DEVIATION = 0.3 # maximum deviation from the delay in seconds
 
@@ -38,21 +38,31 @@ def get_timestamp() -> float:
 
 BELOW_NORM_PROBABILITY = 0.05
 ABOVE_NORM_PROBABILITY = 0.05
-NORMAL_RANGE = 32
+default_params = [
+    {"sensor_id": "101", "min_value": 43, "max_value": 73},
+    {"sensor_id": "102", "min_value": 52, "max_value": 82},
+    {"sensor_id": "103", "min_value": 38, "max_value": 68},
+    {"sensor_id": "104", "min_value": 65, "max_value": 95},
+    {"sensor_id": "105", "min_value": 25, "max_value": 35},
+    {"sensor_id": "106", "min_value": 32, "max_value": 52},
+    {"sensor_id": "107", "min_value": 17, "max_value": 47},
+    {"sensor_id": "108", "min_value": 11, "max_value": 31},
+]
 
 class Sensor:
     def __init__(
             self,
             sensor_id: str,
             min_normal_value: int,
-            value_range: int = NORMAL_RANGE
+            max_normal_value: int,
         ):
         self.sensor_id = sensor_id
         self.min_normal_value = min_normal_value
-        self.value_range = value_range
+        self.max_normal_value = max_normal_value
+        self.value_range = max_normal_value - min_normal_value + 1
     
     def get_value(self, random_generator: random.Random) -> int:
-        value = random_generator.randint(self.min_normal_value, self.min_normal_value + self.value_range - 1)
+        value = random_generator.randint(self.min_normal_value, self.max_normal_value)
         deviation_dice_roll = random_generator.random()
         if deviation_dice_roll < BELOW_NORM_PROBABILITY:
             value -= self.value_range
@@ -64,18 +74,10 @@ class Sensor:
         return {
             "sensor_id": self.sensor_id,
             "value": self.get_value(random_generator),
-            "timestamp": get_timestamp(),
         }
 
 SENSORS: list[Sensor] = [
-    Sensor("101", 23),
-    Sensor("102", 47),
-    Sensor("103", 55),
-    Sensor("104", 70),
-    Sensor("105", 63),
-    Sensor("106", 54),
-    Sensor("107", 72),
-    Sensor("108", 82),
+    Sensor(param["sensor_id"], param["min_value"], param["max_value"]) for param in default_params
 ]
 
 def login(username: str, password: str) -> Optional[str]:
@@ -114,14 +116,14 @@ def task_worker(queue: queue.Queue, headers: dict, responses: Counter[int], work
 
 def produce_sensor_data(queue: queue.Queue, sensor: Sensor) -> None:
     random_generator = random.Random()
-    for _ in range(N_REQUESTS):
+    for _ in range(N_REQUESTS_PER_SENSOR):
         queue.put(sensor.get_sensor_data(random_generator))
         time.sleep(DELAY_SECONDS + 2 * (random_generator.random() - 0.5) * DELAY_MAX_DEVIATION)
 
-def generate_stream() -> Counter[int] | None:
+def generate_stream(username: str, password: str) -> Counter[int] | None:
     logger.info("Starting test")
     logger.info("Logging in...")
-    access_token = login("user", "12345@Com")
+    access_token = login(username, password)
     
     if not access_token:
         logger.error("Failed to login")
@@ -145,7 +147,7 @@ def generate_stream() -> Counter[int] | None:
     
     workers: list[threading.Thread] = []
     counters: list[Counter[int]] = []
-    for worker_id in range(MAX_WORKERS):
+    for worker_id in range(MAX_SENDER_WORKERS):
         counters.append(Counter[int]())
         worker = threading.Thread(target=task_worker, args=(task_queue, HEADERS.copy(), counters[worker_id], worker_id))
         workers.append(worker)
@@ -157,7 +159,7 @@ def generate_stream() -> Counter[int] | None:
     
     task_queue.join()
     
-    for _ in range(MAX_WORKERS):
+    for _ in range(MAX_SENDER_WORKERS):
         task_queue.put(None)
     # wait for workers to complete
     for worker in workers:
@@ -170,7 +172,7 @@ def generate_stream() -> Counter[int] | None:
     return response_statistics
 
 if __name__ == "__main__":
-    response_statistics = generate_stream()
+    response_statistics = generate_stream("user", "12345@Com")
     if response_statistics is not None:
         logger.info("Response statistics: %s", response_statistics)
         logger.info("Total requests: %d", sum(response_statistics.values()))

@@ -28,46 +28,14 @@ def send_response(event, context, status, data=None):
 def seed_default_parameters() -> None:
     """Seed the DynamoDB table with default sensor parameters on stack creation."""
     default_params = [
-        {
-            "sensor_id": "101",
-            "min_value": 43,
-            "max_value": 73,
-        },
-        {
-            "sensor_id": "102",
-            "min_value": 52,
-            "max_value": 82,
-        },
-        {
-            "sensor_id": "103",
-            "min_value": 38,
-            "max_value": 68,
-        },
-        {
-            "sensor_id": "104",
-            "min_value": 55,
-            "max_value": 85,
-        },
-        {
-            "sensor_id": "105",
-            "min_value": 25,
-            "max_value": 35,
-        },
-        {
-            "sensor_id": "106",
-            "min_value": 56,
-            "max_value": 86,
-        },
-        {
-            "sensor_id": "107",
-            "min_value": 17,
-            "max_value": 47,
-        },
-        {
-            "sensor_id": "108",
-            "min_value": 68,
-            "max_value": 98,
-        },
+        {"sensor_id": "101", "min_value": 43, "max_value": 73},
+        {"sensor_id": "102", "min_value": 52, "max_value": 82},
+        {"sensor_id": "103", "min_value": 38, "max_value": 68},
+        {"sensor_id": "104", "min_value": 65, "max_value": 95},
+        {"sensor_id": "105", "min_value": 25, "max_value": 35},
+        {"sensor_id": "106", "min_value": 32, "max_value": 52},
+        {"sensor_id": "107", "min_value": 17, "max_value": 47},
+        {"sensor_id": "108", "min_value": 11, "max_value": 31},
     ]
     table_name = os.environ.get("DYNAMODB_TABLE_NAME")
     resource = boto3.resource("dynamodb")
