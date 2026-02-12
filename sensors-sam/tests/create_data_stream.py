@@ -1,5 +1,5 @@
 import random
-import threading
+from threading import Thread
 import time
 import argparse
 from typing import Optional
@@ -25,17 +25,10 @@ API_URL = f"http://{API_BASE_URL}{API_PATH}"
 
 RESPONSE_STATISTICS: dict[int, int] = {}    # statistics of responses by status code
 
-MAX_SENDER_WORKERS = 4 # number of workers to use for sending sensor data
+N_SENDERS = 4 # number of sender threads to use for sending sensor data
 N_REQUESTS_PER_SENSOR = 256 # number of requests to send for each sensor
 DELAY_SECONDS = 2 # delay between requests in seconds
 DELAY_MAX_DEVIATION = 0.3 # maximum deviation from the delay in seconds
-
-HEADERS: dict[str, str] = {
-    "Content-Type": "application/json",
-}
-
-def get_timestamp() -> float:
-    return time.time()
 
 BELOW_NORM_PROBABILITY = 0.05
 ABOVE_NORM_PROBABILITY = 0.05
@@ -75,6 +68,7 @@ class Sensor:
         return {
             "sensor_id": self.sensor_id,
             "value": self.get_value(random_generator),
+            "timestamp": time.time(),
         }
 
 SENSORS: list[Sensor] = [
@@ -103,7 +97,7 @@ def send_sensor_data(sensor_data: dict, headers: dict) -> int:
         logger.error("Error sending sensor data: %s", e)
         return -1
 
-def task_worker(queue: queue.Queue, headers: dict, responses: Counter[int], worker_id: int) -> None:
+def sender(queue: queue.Queue, headers: dict, responses: Counter[int], worker_id: int) -> None:
     logger.info("==== Worker %d started ====", worker_id)
     while True:
         task = queue.get()
@@ -146,21 +140,18 @@ def generate_stream(username: str, password: str) -> Counter[int] | None:
     logger.info("Sending requests...")
     task_queue: queue.Queue[dict | None] = queue.Queue()
     
-    workers: list[threading.Thread] = []
-    counters: list[Counter[int]] = []
-    for worker_id in range(MAX_SENDER_WORKERS):
-        counters.append(Counter[int]())
-        worker = threading.Thread(target=task_worker, args=(task_queue, HEADERS.copy(), counters[worker_id], worker_id))
-        workers.append(worker)
-        worker.start()
+    counters = [Counter[int]() for _ in range(N_SENDERS)]
+    workers = [Thread(target=sender, args=(task_queue, HEADERS.copy(), counters[w_id], w_id)) for w_id in range(N_SENDERS)]
     
-    with ThreadPoolExecutor(max_workers=len(SENSORS)) as executor:
-        for sensor in SENSORS:
-            executor.submit(produce_sensor_data, task_queue, sensor)
+    for w in workers:
+        w.start()
     
-    task_queue.join()
+    with ThreadPoolExecutor(max_workers=len(SENSORS)) as exe:
+        producers = [exe.submit(produce_sensor_data, task_queue, sensor) for sensor in SENSORS]
     
-    for _ in range(MAX_SENDER_WORKERS):
+    task_queue.join()   # wait for all tasks to be completed
+    # signal workers to stop
+    for _ in producers:
         task_queue.put(None)
     # wait for workers to complete
     for worker in workers:
